@@ -1,51 +1,71 @@
-import { DateTime } from 'luxon';
-import { DefaultResponseProcessor, Api, ApiResponseType } from 'rest-api-handler';
-import FioApiException from './FioApiException';
+import { Axios } from "axios";
+import { DateTime } from "luxon";
+import { fioAxios } from "./fioAxios";
 
-export default class FioApi extends Api<ApiResponseType<any>> {
-    public apiKey: string;
+export default class FioApi {
+  public apiKey: string;
+  public format: string;
+  private fioAxios: Axios;
+  protected dateFormat = "yyyy-MM-dd";
 
-    public format: string;
+  public constructor(apiKey: string, format = "json") {
+    this.fioAxios = fioAxios;
+    this.apiKey = apiKey;
+    this.format = format;
+  }
 
-    protected dateFormat = 'yyyy-MM-dd';
+  public getTransactionOverview(
+    year: number,
+    overviewNumber: number
+  ): Promise<any> {
+    return this.fioAxios.get(
+      this.getTransactionsApiUrl("by-id", `${year}/${overviewNumber}`)
+    );
+  }
 
-    public constructor(apiKey: string, format = 'json') {
-        super('https://www.fio.cz/ib_api/rest', [
-            new DefaultResponseProcessor(FioApiException),
-        ]);
-        this.apiKey = apiKey;
-        this.format = format;
-    }
+  public getTransactions(start: DateTime, end: DateTime): Promise<any> {
+    return this.fioAxios.get(
+      this.getTransactionsApiUrl(
+        "periods",
+        `${start.toFormat(this.dateFormat)}/${end.toFormat(this.dateFormat)}`
+      )
+    );
+  }
 
-    public getTransactionOverview(year: number, overviewNumber: number): Promise<any> {
-        return this.get(this.getTransactionsApiUrl('by-id', `${year}/${overviewNumber}`));
-    }
+  public getLastTransactions(): Promise<any> {
+    return this.fioAxios.get(this.getTransactionsApiUrl("last"));
+  }
 
-    public getTransactions(start: DateTime, end: DateTime): Promise<any> {
-        return this.get(this.getTransactionsApiUrl('periods', `${start.toFormat(this.dateFormat)}/${end.toFormat(this.dateFormat)}`));
-    }
+  public setLastTransactionById(id: number) {
+    return this.fioAxios.get(
+      this.getLastTransactionSetApiUrl("id", id.toString())
+    );
+  }
 
-    public getLastTransactions(): Promise<any> {
-        return this.get(this.getTransactionsApiUrl('last'));
-    }
+  public setLastTransactionBydate(date: DateTime) {
+    return this.fioAxios.get(
+      this.getLastTransactionSetApiUrl("date", date.toFormat(this.dateFormat))
+    );
+  }
 
-    public setLastTransactionById(id: number) {
-        return this.get(this.getLastTransactionSetApiUrl('id', id.toString()));
-    }
+  public getApiUrl(
+    action: string,
+    namespace: string,
+    format: string = this.format
+  ): string {
+    return `${action}/${this.apiKey}/${namespace}${
+      format ? `.${format}` : "/"
+    }`;
+  }
 
-    public setLastTransactionBydate(date: DateTime) {
-        return this.get(this.getLastTransactionSetApiUrl('date', date.toFormat(this.dateFormat)));
-    }
+  public getTransactionsApiUrl(action: string, namespace?: string): string {
+    return this.getApiUrl(
+      action,
+      `${namespace ? `/${namespace}/` : ""}transactions`
+    );
+  }
 
-    public getApiUrl(action: string, namespace: string, format: string = this.format): string {
-        return `${action}/${this.apiKey}/${namespace}${format ? `.${format}` : '/'}`;
-    }
-
-    public getTransactionsApiUrl(action: string, namespace?: string): string {
-        return this.getApiUrl(action, `${namespace ? `/${namespace}/` : ''}transactions`);
-    }
-
-    public getLastTransactionSetApiUrl(action: string, value: string): string {
-        return this.getApiUrl(`set-last-${action}`, value, undefined);
-    }
+  public getLastTransactionSetApiUrl(action: string, value: string): string {
+    return this.getApiUrl(`set-last-${action}`, value, undefined);
+  }
 }
